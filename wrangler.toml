@@ -1,8 +1,11 @@
-name = "rogue-lab"
+name = "rogue-lab-v1"
 main = "src/worker.ts"
 compatibility_date = "2026-07-01"
 account_id = "8b7ebe7cc8bb9b5579f7b2fe2d6cb431"
-workers_dev = true
+workers_dev = false
+routes = [
+  { pattern = "lab.adrianlumley.co/*", zone_name = "adrianlumley.co" }
+]
 
 [assets]
 directory = "./public"
