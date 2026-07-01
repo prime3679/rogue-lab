@@ -4,10 +4,156 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>rogue lab</title>
-    <meta http-equiv="refresh" content="0; url=/fable-field-recorder/" />
-    <style>body{font-family:Georgia,serif;background:#f7f2ea;color:#201915;padding:2rem}a{color:#8f442f}</style>
+    <meta name="description" content="Rogue Lab is Adrian's live surface for agent-built web products and experiments." />
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #1d1814;
+        --muted: #6e6258;
+        --paper: #f6efe5;
+        --card: #fffaf1;
+        --line: rgba(29, 24, 20, 0.14);
+        --accent: #9b3f28;
+        --accent-soft: #f0c9b8;
+        --green: #356b44;
+        --yellow: #9a6a1e;
+        --shadow: 0 24px 80px rgba(60, 38, 20, 0.12);
+      }
+      * { box-sizing: border-box; }
+      html { background: var(--paper); }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 14% 8%, rgba(240, 201, 184, 0.8), transparent 32rem),
+          radial-gradient(circle at 88% 12%, rgba(255, 245, 220, 0.9), transparent 34rem),
+          linear-gradient(180deg, #fbf5eb 0%, #f2e8db 100%);
+      }
+      a { color: inherit; }
+      .shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 56px; }
+      header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding: 20px 0 52px; }
+      .mark { letter-spacing: .18em; text-transform: uppercase; font: 700 12px/1.2 ui-sans-serif, system-ui, sans-serif; color: var(--accent); }
+      .status-pill { border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; background: rgba(255,250,241,.72); color: var(--muted); font: 650 12px/1 ui-sans-serif, system-ui, sans-serif; }
+      .hero { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr); gap: 28px; align-items: stretch; }
+      h1 { font-size: clamp(48px, 8vw, 108px); line-height: .86; letter-spacing: -.07em; margin: 0; max-width: 820px; }
+      .lede { margin: 28px 0 0; max-width: 680px; color: var(--muted); font-size: clamp(19px, 2vw, 24px); line-height: 1.35; }
+      .panel { background: rgba(255,250,241,.78); border: 1px solid var(--line); border-radius: 28px; box-shadow: var(--shadow); padding: 22px; backdrop-filter: blur(14px); }
+      .panel h2 { margin: 0 0 14px; font: 750 13px/1.1 ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .16em; color: var(--muted); }
+      .metric { display: flex; align-items: baseline; justify-content: space-between; border-top: 1px solid var(--line); padding: 16px 0; }
+      .metric:first-of-type { border-top: 0; }
+      .metric strong { font-size: 32px; letter-spacing: -.05em; }
+      .metric span { color: var(--muted); font: 650 12px/1.2 ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .12em; }
+      .section-head { margin: 52px 0 18px; display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+      .section-head h2 { margin: 0; font-size: clamp(28px, 4vw, 48px); letter-spacing: -.05em; }
+      .section-head p { margin: 0; color: var(--muted); max-width: 420px; line-height: 1.35; }
+      .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 18px; }
+      .card { grid-column: span 6; min-height: 280px; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; background: var(--card); border: 1px solid var(--line); border-radius: 30px; padding: 24px; box-shadow: 0 18px 60px rgba(54, 38, 21, .1); }
+      .card::after { content: ""; position: absolute; inset: auto -30% -42% 18%; height: 180px; background: radial-gradient(circle, rgba(155, 63, 40, .18), transparent 68%); transform: rotate(-8deg); pointer-events: none; }
+      .card-top { display: flex; justify-content: space-between; gap: 14px; align-items: start; position: relative; z-index: 1; }
+      .badge { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 7px 10px; font: 750 11px/1 ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .12em; background: #f5eadc; color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+      .badge.live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(53, 107, 68, .12); }
+      .badge.building::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 0 4px rgba(154, 106, 30, .12); }
+      .card h3 { margin: 28px 0 10px; font-size: clamp(32px, 4vw, 54px); line-height: .92; letter-spacing: -.065em; position: relative; z-index: 1; }
+      .card p { color: var(--muted); font-size: 18px; line-height: 1.38; max-width: 620px; margin: 0; position: relative; z-index: 1; }
+      .meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; position: relative; z-index: 1; }
+      .chip { border: 1px solid var(--line); color: var(--muted); border-radius: 999px; padding: 8px 10px; font: 650 12px/1 ui-sans-serif, system-ui, sans-serif; background: rgba(255,255,255,.35); }
+      .open { margin-top: 24px; display: inline-flex; align-self: flex-start; border-radius: 999px; background: var(--ink); color: #fffaf1; text-decoration: none; padding: 12px 16px; font: 750 13px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .04em; position: relative; z-index: 1; }
+      .empty { grid-column: 1 / -1; border: 1px dashed var(--line); border-radius: 24px; padding: 30px; color: var(--muted); background: rgba(255,250,241,.58); }
+      footer { color: var(--muted); margin-top: 44px; padding-top: 24px; border-top: 1px solid var(--line); font: 650 12px/1.5 ui-sans-serif, system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+      @media (max-width: 780px) {
+        .shell { width: min(100% - 24px, 1120px); padding-top: 18px; }
+        header, .section-head { display: block; }
+        .status-pill { display: inline-block; margin-top: 14px; }
+        .hero { grid-template-columns: 1fr; }
+        .card { grid-column: 1 / -1; border-radius: 24px; padding: 20px; min-height: 300px; }
+      }
+    </style>
   </head>
   <body>
-    <p>opening <a href="/fable-field-recorder/">fable field recorder</a>.</p>
+    <div class="shell">
+      <header>
+        <div class="mark">rogue lab</div>
+        <div class="status-pill" id="sync">syncing registry</div>
+      </header>
+
+      <section class="hero" aria-labelledby="title">
+        <div>
+          <h1 id="title">live experiments, built like products.</h1>
+          <p class="lede">A public registry for agent-built web products: small enough to ship quickly, real enough to have routes, APIs, persistence, and a deploy path.</p>
+        </div>
+        <aside class="panel" aria-label="Registry metrics">
+          <h2>registry health</h2>
+          <div class="metric"><strong id="project-count">0</strong><span>projects</span></div>
+          <div class="metric"><strong id="live-count">0</strong><span>live</span></div>
+          <div class="metric"><strong id="surface-count">3</strong><span>layers</span></div>
+        </aside>
+      </section>
+
+      <section aria-labelledby="projects-title">
+        <div class="section-head">
+          <h2 id="projects-title">current builds</h2>
+          <p>Each card is backed by D1 so the lab can grow into a real product surface instead of a static link list.</p>
+        </div>
+        <div class="grid" id="projects">
+          <div class="empty">Loading the registry.</div>
+        </div>
+      </section>
+
+      <footer>Cloudflare Worker + D1. Gray beats false green. Done means observed.</footer>
+    </div>
+
+    <script>
+      const projectsEl = document.getElementById('projects');
+      const syncEl = document.getElementById('sync');
+      const countEl = document.getElementById('project-count');
+      const liveEl = document.getElementById('live-count');
+
+      function esc(value) {
+        return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
+      function card(project) {
+        const status = esc(project.status || 'unknown');
+        return `
+          <article class="card">
+            <div>
+              <div class="card-top">
+                <span class="badge ${status}">${status}</span>
+                <span class="chip">${esc(project.visibility || 'public')}</span>
+              </div>
+              <h3>${esc(project.name)}</h3>
+              <p>${esc(project.summary)}</p>
+            </div>
+            <div>
+              <div class="meta">
+                <span class="chip">${esc(project.stack)}</span>
+                <span class="chip">${esc(project.model)}</span>
+              </div>
+              <a class="open" href="${esc(project.url)}">open project</a>
+            </div>
+          </article>
+        `;
+      }
+
+      async function load() {
+        try {
+          const response = await fetch('/api/projects', { headers: { accept: 'application/json' } });
+          if (!response.ok) throw new Error(`registry ${response.status}`);
+          const data = await response.json();
+          const projects = data.projects || [];
+          countEl.textContent = projects.length;
+          liveEl.textContent = projects.filter(p => p.status === 'live').length;
+          projectsEl.innerHTML = projects.length ? projects.map(card).join('') : '<div class="empty">No projects registered yet.</div>';
+          syncEl.textContent = data.state === 'static-fallback' ? 'static fallback' : 'd1 registry online';
+        } catch (error) {
+          syncEl.textContent = 'registry unavailable';
+          projectsEl.innerHTML = '<div class="empty">The registry API did not respond. The lab surface is still online.</div>';
+          console.error(error);
+        }
+      }
+      load();
+    </script>
   </body>
 </html>
