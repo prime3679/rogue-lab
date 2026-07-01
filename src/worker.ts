@@ -1,153 +1,110 @@
 export interface Env {
   ASSETS: Fetcher;
   DB?: D1Database;
+  ADMIN_TOKEN?: string;
 }
 
-type SpecimenInput = {
-  kind?: unknown;
-  note?: unknown;
-  doctrine?: unknown;
-  readings?: unknown;
-};
-
-type ProjectInput = {
-  slug?: unknown;
-  name?: unknown;
-  status?: unknown;
-  summary?: unknown;
-  url?: unknown;
-  model?: unknown;
-  stack?: unknown;
-  visibility?: unknown;
-  sort_order?: unknown;
+type SpecimenInput = { kind?: unknown; note?: unknown; doctrine?: unknown; readings?: unknown };
+type ProjectInput = { slug?: unknown; name?: unknown; status?: unknown; summary?: unknown; url?: unknown; model?: unknown; stack?: unknown; visibility?: unknown; sort_order?: unknown };
+type EditionRow = {
+  edition_date: string; issue_no: number; condition: string; temp_hi: number; temp_lo: number; humidity: number; cloud_cover: number; wind_mph: number; wind_deg: number; precip_prob: number; sunrise: string; sunset: string; moon_phase: number; aqi: number | null; accent: string; leader_text: string; motto_text: string; number_value: string; number_caption: string; ornament_seed: number; payload: string; created_at: string;
 };
 
 const allowedKinds = new Set(['tap', 'jot', 'sprint', 'longread', 'meander', 'loop', 'steady']);
 const allowedProjectStatus = new Set(['live', 'building', 'archived']);
 const allowedVisibility = new Set(['public', 'private', 'hidden']);
+const launchDate = '2026-07-01';
+const nyc = { lat: 40.7128, lon: -74.006 };
 
 function json(data: unknown, init: ResponseInit = {}) {
-  return new Response(JSON.stringify(data), {
-    ...init,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'no-store',
-      ...init.headers,
-    },
-  });
+  return new Response(JSON.stringify(data), { ...init, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...init.headers } });
+}
+function html(body: string, init: ResponseInit = {}) {
+  return new Response(body, { ...init, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300', ...init.headers } });
+}
+function cleanText(value: unknown, max: number) { return String(value ?? '').replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, max); }
+function cleanSlug(value: unknown) { return cleanText(value, 80).toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''); }
+function cleanUrl(value: unknown) { const url = cleanText(value, 180); return url.startsWith('/') || url.startsWith('https://') ? url : ''; }
+function escapeHtml(value: unknown) { return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] || c)); }
+function id() { return crypto.randomUUID(); }
+function requireAdmin(request: Request, env: Env) {
+  if (!env.ADMIN_TOKEN) return false;
+  const auth = request.headers.get('authorization') || '';
+  return auth === `Bearer ${env.ADMIN_TOKEN}`;
+}
+function todayNY() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+function issueNo(date: string) { return Math.floor((Date.parse(date + 'T00:00:00Z') - Date.parse(launchDate + 'T00:00:00Z')) / 86400000) + 1; }
+function mulberry32(seed: number) { return function() { let t = seed += 0x6D2B79F5; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function hashSeed(text: string) { let h = 2166136261; for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function fmtTime(iso: string) { return new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' }).format(new Date(iso)); }
+function dateLong(date: string) { return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(date + 'T00:00:00Z')); }
+function windWords(deg: number) { const dirs = ['N','NE','E','SE','S','SW','W','NW']; return dirs[Math.round(deg / 45) % 8]; }
+function moonGlyph(phase: number) { if (phase < .08 || phase > .92) return '●'; if (phase < .42) return '◐'; if (phase < .58) return '○'; return '◑'; }
+function conditionFrom(weatherCode: number, precip: number, cloud: number) { if (precip >= 45 || [51,53,55,61,63,65,80,81,82,95,96,99].includes(weatherCode)) return 'rainy'; if (cloud <= 35 && precip < 20) return 'sunny'; return 'cloudy'; }
+function accentFor(condition: string) { return condition === 'sunny' ? 'oklch(0.62 0.13 75)' : condition === 'rainy' ? 'oklch(0.45 0.08 265)' : 'oklch(0.52 0.02 270)'; }
+function leader(condition: string, hi: number, precip: number) {
+  const templates: Record<string,string[]> = {
+    rainy: [`Rain today, and not the apologetic kind. It arrives with a bureaucrat's patience and asks the city to produce its better umbrellas. The high reaches ${hi}, but the sidewalks will remember the water longer than the thermometer does. Carry the good umbrella, the one you do not lend.`, `A wet day for New York, probability ${precip} percent, which is to say the sky has nearly made up its mind. Subway grates will breathe like old machines. Coffee will taste more necessary than decorative.`],
+    sunny: [`A clear morning, ${hi} by afternoon, the sort of day the city produces two dozen times a year and pretends is standard issue. The light will be excellent on north-facing streets. Errands you have deferred will not survive this weather as excuses.`, `Sun with conviction. The city will look newly varnished for several hours, then remember traffic. Windows become instruments today; every westward room gets its small performance.`],
+    cloudy: [`Overcast, ceiling low, temperature undecided. The sky today is doing paperwork. No rain is promised and none is ruled out, which is also how the landlord answers questions. A good day for the library, or for finishing something.`, `Clouds hold the morning in place. The day is neither generous nor cruel, which leaves room for discipline. Walk without spectacle; finish the thing that has been waiting.`]
+  };
+  const arr = templates[condition] || templates.cloudy;
+  return arr[Math.abs(hi + precip) % arr.length];
+}
+function motto(condition: string) { return condition === 'sunny' ? 'Use the good light before it becomes memory.' : condition === 'rainy' ? 'What returns daily deserves a ritual.' : 'Gray is not absence; it is an instruction to look closer.'; }
+function numberLine(condition: string, hi: number, cloud: number, precip: number) {
+  if (condition === 'rainy') return { value: String(Math.max(1200, precip * 137)), caption: 'small negotiations between sky and pavement expected before evening' };
+  if (condition === 'sunny') return { value: String(Math.max(8, 100 - cloud)), caption: 'percent of the sky temporarily available for optimism' };
+  return { value: String(cloud), caption: 'percent cloud cover, or the amount of ceiling the city has accepted' };
+}
+function ornament(row: EditionRow) {
+  const rand = mulberry32(row.ornament_seed); const arcs = Math.max(5, Math.round(row.cloud_cover / 9)); const tilt = (row.wind_deg - 180) / 90; let parts = '';
+  if (row.condition === 'sunny') parts += `<path d="M56 74 A44 44 0 0 1 144 74" fill="none" stroke="currentColor" stroke-width="1.4"/>` + Array.from({length:10},(_,i)=>`<line x1="100" y1="74" x2="${60+i*9}" y2="${28+Math.sin(i)*8}"/>`).join('');
+  for (let i=0;i<arcs;i++){ const y=22+i*8; const wob=(rand()-.5)*9; parts += `<path d="M${18+wob} ${y} C ${80+wob+tilt*4} ${y-18}, ${150+wob-tilt*4} ${y+18}, ${238+wob} ${y}" fill="none" stroke="currentColor" stroke-width="${0.6+rand()*1.2}" opacity="${0.42+rand()*0.45}"/>`; }
+  if (row.condition === 'rainy') for (let i=0;i<Math.round(row.precip_prob/8);i++){ const x=28+i*18+(rand()*8); parts += `<line x1="${x}" y1="62" x2="${x-4}" y2="86" opacity=".58"/>`; }
+  return `<svg class="ornament" viewBox="0 0 260 100" role="img" aria-label="Weather rose ornament"><g stroke="currentColor" stroke-linecap="round">${parts}</g></svg>`;
 }
 
-function cleanText(value: unknown, max: number) {
-  return String(value ?? '')
-    .replace(/[<>]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, max);
+async function fetchEdition(date = todayNY()): Promise<EditionRow> {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${nyc.lat}&longitude=${nyc.lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,daylight_duration,uv_index_max,precipitation_probability_max&hourly=relative_humidity_2m,cloud_cover,wind_speed_10m,wind_direction_10m&current=temperature_2m,relative_humidity_2m,cloud_cover,wind_speed_10m,wind_direction_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America%2FNew_York&forecast_days=1`;
+  const data: any = await fetch(url).then(r => r.json());
+  const daily = data.daily; const current = data.current || {}; const code = Number(daily.weather_code?.[0] || 3);
+  const hi = Math.round(Number(daily.temperature_2m_max?.[0] || current.temperature_2m || 70)); const lo = Math.round(Number(daily.temperature_2m_min?.[0] || hi - 8));
+  const precip = Math.round(Number(daily.precipitation_probability_max?.[0] || 0)); const cloud = Math.round(Number(current.cloud_cover ?? data.hourly?.cloud_cover?.[8] ?? 50));
+  const wind = Math.round(Number(current.wind_speed_10m ?? data.hourly?.wind_speed_10m?.[8] ?? 5)); const windDeg = Math.round(Number(current.wind_direction_10m ?? data.hourly?.wind_direction_10m?.[8] ?? 270)); const humidity = Math.round(Number(current.relative_humidity_2m ?? data.hourly?.relative_humidity_2m?.[8] ?? 55));
+  const condition = conditionFrom(code, precip, cloud); const seed = hashSeed(date + condition + hi + lo); const n = numberLine(condition, hi, cloud, precip);
+  return { edition_date: date, issue_no: issueNo(date), condition, temp_hi: hi, temp_lo: lo, humidity, cloud_cover: cloud, wind_mph: wind, wind_deg: windDeg, precip_prob: precip, sunrise: fmtTime(daily.sunrise?.[0]), sunset: fmtTime(daily.sunset?.[0]), moon_phase: (seed % 100) / 100, aqi: null, accent: accentFor(condition), leader_text: leader(condition, hi, precip), motto_text: motto(condition), number_value: n.value, number_caption: n.caption, ornament_seed: seed, payload: JSON.stringify(data), created_at: new Date().toISOString() };
+}
+async function saveEdition(env: Env, row: EditionRow) {
+  await env.DB!.prepare(`INSERT INTO editions (edition_date, issue_no, condition, temp_hi, temp_lo, humidity, cloud_cover, wind_mph, wind_deg, precip_prob, sunrise, sunset, moon_phase, aqi, accent, leader_text, motto_text, number_value, number_caption, ornament_seed, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(edition_date) DO UPDATE SET condition=excluded.condition,temp_hi=excluded.temp_hi,temp_lo=excluded.temp_lo,humidity=excluded.humidity,cloud_cover=excluded.cloud_cover,wind_mph=excluded.wind_mph,wind_deg=excluded.wind_deg,precip_prob=excluded.precip_prob,sunrise=excluded.sunrise,sunset=excluded.sunset,moon_phase=excluded.moon_phase,aqi=excluded.aqi,accent=excluded.accent,leader_text=excluded.leader_text,motto_text=excluded.motto_text,number_value=excluded.number_value,number_caption=excluded.number_caption,ornament_seed=excluded.ornament_seed,payload=excluded.payload,created_at=excluded.created_at`).bind(row.edition_date,row.issue_no,row.condition,row.temp_hi,row.temp_lo,row.humidity,row.cloud_cover,row.wind_mph,row.wind_deg,row.precip_prob,row.sunrise,row.sunset,row.moon_phase,row.aqi,row.accent,row.leader_text,row.motto_text,row.number_value,row.number_caption,row.ornament_seed,row.payload,row.created_at).run();
+}
+async function ensureEdition(env: Env, date = todayNY()) {
+  let row = (await env.DB!.prepare('SELECT * FROM editions WHERE edition_date = ?').bind(date).first()) as EditionRow | null;
+  if (!row) { row = await fetchEdition(date); await saveEdition(env, row); }
+  return row;
+}
+function editionPage(row: EditionRow, archive: any[]) {
+  const archiveLinks = archive.map(a => `<a href="/morning-edition/${escapeHtml(a.edition_date)}">No. ${escapeHtml(a.issue_no)} · ${escapeHtml(a.edition_date)}</a>`).join('');
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Morning Edition · ${escapeHtml(row.edition_date)}</title><style>:root{--paper:#f7f1e6;--ink:#221c15;--muted:color-mix(in oklch,var(--ink) 58%,var(--paper));--accent:${row.accent};--rust:#9b3f28}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Georgia,Cambria,serif}.sheet{width:min(980px,calc(100% - 28px));margin:0 auto;padding:26px 0 52px}.ears{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid var(--ink);padding-bottom:10px;font-variant-caps:all-small-caps;letter-spacing:.08em}.ears a{color:var(--rust);text-decoration:none}.mast{text-align:center;border-bottom:4px double var(--accent);padding:22px 0 14px}.kicker{font-variant-caps:all-small-caps;letter-spacing:.18em;color:var(--muted)}h1{font-size:clamp(3.2rem,13vw,8.5rem);line-height:.82;margin:.12em 0;letter-spacing:-.08em}.dateline{font-variant-caps:all-small-caps;letter-spacing:.08em;color:var(--muted)}.ornament{width:100%;height:104px;color:var(--accent);border-bottom:4px double var(--accent);margin:16px 0 28px}.grid{display:grid;grid-template-columns:1.35fr .65fr;gap:28px}.leader{font-size:clamp(1.25rem,2.2vw,1.7rem);line-height:1.42}.leader:first-letter{float:left;font-size:4.6em;line-height:.75;color:var(--accent);padding:.08em .08em 0 0}.rail{border-left:1px solid var(--accent);padding-left:18px}.rail div{display:flex;justify-content:space-between;border-bottom:1px solid color-mix(in oklch,var(--accent) 35%,transparent);padding:10px 0;font-variant-numeric:tabular-nums}.label{font-variant-caps:all-small-caps;letter-spacing:.08em;color:var(--muted)}.number{margin:34px 0;text-align:center;border-top:1px solid var(--accent);border-bottom:1px solid var(--accent);padding:22px}.number strong{display:block;color:var(--accent);font-size:clamp(4rem,16vw,9rem);line-height:.85;letter-spacing:-.08em}.motto{text-align:center;font-size:1.35rem;font-style:italic;margin:36px auto;max-width:680px}.archive{display:flex;gap:12px;flex-wrap:wrap;border-top:4px double var(--accent);padding-top:18px}.archive a{min-height:44px;color:var(--ink);text-decoration-color:var(--accent)}footer{margin-top:30px;color:var(--muted);font-variant-caps:all-small-caps;letter-spacing:.08em;font-size:.82rem}@media(max-width:720px){.ears{display:block;text-align:center}.grid{display:block}.rail{border-left:0;border-top:1px solid var(--accent);padding:16px 0 0;margin-top:24px}}@media print{body{background:white}.sheet{width:auto}}</style></head><body><main class="sheet"><div class="ears"><span>Vol. I · No. ${row.issue_no}</span><a href="/">Rogue Lab</a></div><header class="mast"><div class="kicker">Morning Edition</div><h1>The Day Itself</h1><div class="dateline">${escapeHtml(dateLong(row.edition_date))} — New York — ${row.temp_hi}° / ${row.temp_lo}°</div></header>${ornament(row)}<section class="grid"><article class="leader">${escapeHtml(row.leader_text)}</article><aside class="rail"><div><span class="label">Sunrise</span><span>${escapeHtml(row.sunrise)}</span></div><div><span class="label">Sunset</span><span>${escapeHtml(row.sunset)}</span></div><div><span class="label">Moon</span><span>${moonGlyph(row.moon_phase)}</span></div><div><span class="label">Humidity</span><span>${row.humidity}%</span></div><div><span class="label">Wind</span><span>${row.wind_mph} mph ${windWords(row.wind_deg)}</span></div><div><span class="label">Rain</span><span>${row.precip_prob}%</span></div></aside></section><section class="number"><strong>${escapeHtml(row.number_value)}</strong><span>${escapeHtml(row.number_caption)}</span></section><p class="motto">✦ ${escapeHtml(row.motto_text)} ✦</p><nav class="archive" aria-label="Edition archive">${archiveLinks}</nav><footer>Set by machine · Cloudflare Cron + D1 · Edition seed ${row.ornament_seed}</footer></main></body></html>`;
 }
 
-function cleanSlug(value: unknown) {
-  return cleanText(value, 80).toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-}
-
-function cleanUrl(value: unknown) {
-  const url = cleanText(value, 180);
-  if (!url.startsWith('/') && !url.startsWith('https://')) return '';
-  return url;
-}
-
-function id() {
-  return crypto.randomUUID();
-}
-
-async function listSpecimens(env: Env) {
-  const rows = await env.DB!.prepare(
-    'SELECT id, kind, note, doctrine, readings, created_at FROM specimens ORDER BY created_at DESC LIMIT 12'
-  ).all();
-  return json({ specimens: rows.results ?? [] });
-}
-
-async function createSpecimen(request: Request, env: Env) {
-  const body = (await request.json().catch(() => ({}))) as SpecimenInput;
-  const kind = cleanText(body.kind, 32);
-  if (!allowedKinds.has(kind)) return json({ error: 'invalid kind' }, { status: 400 });
-  const note = cleanText(body.note, 420);
-  const doctrine = cleanText(body.doctrine, 120);
-  const readings = cleanText(body.readings, 160);
-  if (!note || !doctrine || !readings) return json({ error: 'missing fields' }, { status: 400 });
-  const specimenId = id();
-  const createdAt = new Date().toISOString();
-  await env.DB!.prepare(
-    'INSERT INTO specimens (id, kind, note, doctrine, readings, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-  ).bind(specimenId, kind, note, doctrine, readings, createdAt).run();
-  return json({ ok: true, id: specimenId, created_at: createdAt }, { status: 201 });
-}
-
-async function listProjects(env: Env) {
-  const rows = await env.DB!.prepare(
-    'SELECT slug, name, status, summary, url, model, stack, visibility, sort_order, created_at, updated_at FROM projects ORDER BY sort_order ASC, updated_at DESC'
-  ).all();
-  return json({ projects: rows.results ?? [], state: 'd1' });
-}
-
-async function upsertProject(request: Request, env: Env) {
-  const body = (await request.json().catch(() => ({}))) as ProjectInput;
-  const slug = cleanSlug(body.slug);
-  const name = cleanText(body.name, 120);
-  const status = cleanText(body.status, 32);
-  const summary = cleanText(body.summary, 520);
-  const url = cleanUrl(body.url);
-  const model = cleanText(body.model, 120);
-  const stack = cleanText(body.stack, 160);
-  const visibility = cleanText(body.visibility || 'public', 32);
-  const sortOrder = Number.isFinite(Number(body.sort_order)) ? Math.trunc(Number(body.sort_order)) : 100;
-  if (!slug || !name || !summary || !url || !model || !stack) return json({ error: 'missing fields' }, { status: 400 });
-  if (!allowedProjectStatus.has(status)) return json({ error: 'invalid status' }, { status: 400 });
-  if (!allowedVisibility.has(visibility)) return json({ error: 'invalid visibility' }, { status: 400 });
-  const now = new Date().toISOString();
-  await env.DB!.prepare(`
-    INSERT INTO projects (slug, name, status, summary, url, model, stack, visibility, sort_order, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(slug) DO UPDATE SET
-      name = excluded.name,
-      status = excluded.status,
-      summary = excluded.summary,
-      url = excluded.url,
-      model = excluded.model,
-      stack = excluded.stack,
-      visibility = excluded.visibility,
-      sort_order = excluded.sort_order,
-      updated_at = excluded.updated_at
-  `).bind(slug, name, status, summary, url, model, stack, visibility, sortOrder, now, now).run();
-  return json({ ok: true, slug, updated_at: now }, { status: 201 });
-}
-
-async function handleApi(request: Request, env: Env) {
-  const url = new URL(request.url);
-  if (!env.DB) {
-    if (url.pathname === '/api/projects') return json({ projects: [], state: 'static-fallback' });
-    if (url.pathname === '/api/specimens') return json({ specimens: [], state: 'static-fallback' });
-    return json({ error: 'not found' }, { status: 404 });
-  }
-
-  if (url.pathname === '/api/specimens') {
-    if (request.method === 'GET') return listSpecimens(env);
-    if (request.method === 'POST') return createSpecimen(request, env);
-    return json({ error: 'method not allowed' }, { status: 405, headers: { allow: 'GET, POST' } });
-  }
-
-  if (url.pathname === '/api/projects') {
-    if (request.method === 'GET') return listProjects(env);
-    if (request.method === 'POST') return upsertProject(request, env);
-    return json({ error: 'method not allowed' }, { status: 405, headers: { allow: 'GET, POST' } });
-  }
-
-  return json({ error: 'not found' }, { status: 404 });
-}
+async function listSpecimens(env: Env) { const rows = await env.DB!.prepare('SELECT id, kind, note, doctrine, readings, created_at FROM specimens ORDER BY created_at DESC LIMIT 12').all(); return json({ specimens: rows.results ?? [] }); }
+async function createSpecimen(request: Request, env: Env) { const body = (await request.json().catch(() => ({}))) as SpecimenInput; const kind = cleanText(body.kind, 32); if (!allowedKinds.has(kind)) return json({ error: 'invalid kind' }, { status: 400 }); const note = cleanText(body.note, 420); const doctrine = cleanText(body.doctrine, 120); const readings = cleanText(body.readings, 160); if (!note || !doctrine || !readings) return json({ error: 'missing fields' }, { status: 400 }); const specimenId = id(); const createdAt = new Date().toISOString(); await env.DB!.prepare('INSERT INTO specimens (id, kind, note, doctrine, readings, created_at) VALUES (?, ?, ?, ?, ?, ?)').bind(specimenId, kind, note, doctrine, readings, createdAt).run(); return json({ ok: true, id: specimenId, created_at: createdAt }, { status: 201 }); }
+async function listProjects(env: Env) { const rows = await env.DB!.prepare('SELECT slug, name, status, summary, url, model, stack, visibility, sort_order, created_at, updated_at FROM projects ORDER BY sort_order ASC, updated_at DESC').all(); return json({ projects: rows.results ?? [], state: 'd1' }); }
+async function upsertProject(request: Request, env: Env) { if (!requireAdmin(request, env)) return json({ error: 'unauthorized' }, { status: 401 }); const body = (await request.json().catch(() => ({}))) as ProjectInput; const slug = cleanSlug(body.slug); const name = cleanText(body.name, 120); const status = cleanText(body.status, 32); const summary = cleanText(body.summary, 520); const url = cleanUrl(body.url); const model = cleanText(body.model, 120); const stack = cleanText(body.stack, 160); const visibility = cleanText(body.visibility || 'public', 32); const sortOrder = Number.isFinite(Number(body.sort_order)) ? Math.trunc(Number(body.sort_order)) : 100; if (!slug || !name || !summary || !url || !model || !stack) return json({ error: 'missing fields' }, { status: 400 }); if (!allowedProjectStatus.has(status)) return json({ error: 'invalid status' }, { status: 400 }); if (!allowedVisibility.has(visibility)) return json({ error: 'invalid visibility' }, { status: 400 }); const now = new Date().toISOString(); await env.DB!.prepare(`INSERT INTO projects (slug, name, status, summary, url, model, stack, visibility, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(slug) DO UPDATE SET name=excluded.name,status=excluded.status,summary=excluded.summary,url=excluded.url,model=excluded.model,stack=excluded.stack,visibility=excluded.visibility,sort_order=excluded.sort_order,updated_at=excluded.updated_at`).bind(slug, name, status, summary, url, model, stack, visibility, sortOrder, now, now).run(); return json({ ok: true, slug, updated_at: now }, { status: 201 }); }
+async function handleMorning(request: Request, env: Env) { if (!env.DB) return html('D1 unavailable', { status: 503 }); const url = new URL(request.url); const date = url.pathname.match(/^\/morning-edition\/(\d{4}-\d{2}-\d{2})\/?$/)?.[1] || todayNY(); const row = await ensureEdition(env, date); const archive = (await env.DB.prepare('SELECT edition_date, issue_no FROM editions ORDER BY edition_date DESC LIMIT 12').all()).results ?? []; return html(editionPage(row, archive)); }
+async function handleApi(request: Request, env: Env) { const url = new URL(request.url); if (!env.DB) { if (url.pathname === '/api/projects') return json({ projects: [], state: 'static-fallback' }); if (url.pathname === '/api/specimens') return json({ specimens: [], state: 'static-fallback' }); return json({ error: 'not found' }, { status: 404 }); } if (url.pathname === '/api/specimens') { if (request.method === 'GET') return listSpecimens(env); if (request.method === 'POST') return createSpecimen(request, env); return json({ error: 'method not allowed' }, { status: 405, headers: { allow: 'GET, POST' } }); } if (url.pathname === '/api/projects') { if (request.method === 'GET') return listProjects(env); if (request.method === 'POST') return upsertProject(request, env); return json({ error: 'method not allowed' }, { status: 405, headers: { allow: 'GET, POST' } }); } return json({ error: 'not found' }, { status: 404 }); }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === '/morning-edition' || url.pathname.startsWith('/morning-edition/')) return handleMorning(request, env);
     if (url.pathname.startsWith('/api/')) return handleApi(request, env);
     return env.ASSETS.fetch(request);
   },
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil((async () => { if (env.DB) await saveEdition(env, await fetchEdition(todayNY())); })());
+  }
 };

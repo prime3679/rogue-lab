@@ -7,6 +7,9 @@ routes = [
   { pattern = "lab.adrianlumley.co/*", zone_name = "adrianlumley.co" }
 ]
 
+[triggers]
+crons = ["5 10 * * *"]
+
 [assets]
 directory = "./public"
 binding = "ASSETS"
