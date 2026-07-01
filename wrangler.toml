@@ -9,8 +9,7 @@ directory = "./public"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 
-# D1 is planned for stateful v2 once the Cloudflare token has account-level D1/Workers permissions.
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "rogue_lab"
-# database_id = "REPLACE_WITH_D1_ID"
+[[d1_databases]]
+binding = "DB"
+database_name = "rogue_lab"
+database_id = "ae1ac7a9-21b1-4b94-ba4a-3e3911bbd3e5"
