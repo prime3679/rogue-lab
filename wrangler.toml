@@ -1,0 +1,16 @@
+name = "rogue-lab"
+main = "src/worker.ts"
+compatibility_date = "2026-07-01"
+account_id = "8b7ebe7cc8bb9b5579f7b2fe2d6cb431"
+workers_dev = true
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# D1 is planned for stateful v2 once the Cloudflare token has account-level D1/Workers permissions.
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "rogue_lab"
+# database_id = "REPLACE_WITH_D1_ID"
