@@ -24,6 +24,8 @@ Enable a fresh coding agent to make safe, reviewable contributions without triba
 - Run the gate tests.
 - Run the repo’s deterministic checks from installed dependencies only.
 - If `node_modules/` is absent in this worktree and the sibling main workspace has it, a temporary untracked symlink is allowed for verification and must be removed after use.
+- The gate rejects direct shell-inline, network-oriented, and install/setup command shapes at the argv level.
+- The gate cannot inspect arbitrary behavior hidden inside trusted repo-owned scripts or package scripts; changes to those scripts remain review-required protection boundaries.
 
 ## Review Classification
 
