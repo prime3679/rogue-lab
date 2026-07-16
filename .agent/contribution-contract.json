@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "repo": "rogue-lab",
+  "canonical_doctrine": "docs/zero-context-contribution.md",
+  "source_of_truth": [
+    "AGENTS.md",
+    "REVIEW.md",
+    "docs/zero-context-contribution.md",
+    ".agent/contribution-contract.json",
+    "package.json",
+    "wrangler.toml",
+    "src/worker.ts",
+    "scripts/leak-check.mjs",
+    "migrations/"
+  ],
+  "required_files": [
+    "AGENTS.md",
+    "REVIEW.md",
+    "README.md",
+    "docs/zero-context-contribution.md",
+    ".agent/contribution-contract.json",
+    ".agent/contribution_gate.py",
+    "tests/test_contribution_gate.py",
+    "package.json",
+    "wrangler.toml",
+    "src/worker.ts",
+    "scripts/leak-check.mjs"
+  ],
+  "boundaries": {
+    "portable_paths": [
+      ".agent/",
+      "docs/",
+      "tests/",
+      "scripts/",
+      "src/",
+      "migrations/",
+      "public/",
+      "package.json",
+      "tsconfig.json",
+      "wrangler.toml"
+    ],
+    "protected_paths": [
+      "wrangler.toml",
+      "migrations/",
+      "public/",
+      "package-lock.json"
+    ],
+    "forbidden_actions": [
+      "install or update dependencies",
+      "deploy or publish the worker",
+      "run wrangler against remote Cloudflare state for verification",
+      "mutate D1, KV, R2, Queues, cron state, bindings, routes, or auth",
+      "read, print, or rewrite credentials or local secret files"
+    ]
+  },
+  "review": {
+    "rules": [
+      "Report defects and verification gaps before summaries.",
+      "Classify Cloudflare, routing, binding, migration, cron, and auth changes as infrastructure review.",
+      "Treat missing deterministic proof as a review finding, not a style note.",
+      "Escalate instead of guessing when repo guidance is incomplete for safe action."
+    ],
+    "classification": {
+      "one_off_judgment": "A subjective suggestion that does not violate a documented repo rule or deterministic behavior.",
+      "repeatable_defect": "A reproducible code, contract, test, or verification problem that a fresh agent can demonstrate locally.",
+      "missing_domain_knowledge": "A blocked review or implementation decision caused by undocumented architecture or Cloudflare/lab behavior.",
+      "agent_behavior_failure": "A contribution that ignored instruction precedence, safety boundaries, or required verification evidence."
+    }
+  },
+  "escalate_if": [
+    "The repo lacks enough deterministic verification to support the requested claim truthfully.",
+    "Verification would require package installs, credentials, remote services, or cloud mutation.",
+    "A change would alter routes, bindings, auth, migrations, or deployment state without explicit authorization.",
+    "Another worktree or owner already controls a required file."
+  ],
+  "verification": {
+    "commands": [
+      {
+        "id": "gate-tests",
+        "description": "Contribution gate fail-closed coverage.",
+        "cwd": ".",
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_contribution_gate.py"
+        ],
+        "timeout_seconds": 60,
+        "output_limit_bytes": 32768
+      },
+      {
+        "id": "ts-check",
+        "description": "Repository TypeScript compile check.",
+        "cwd": ".",
+        "argv": [
+          "npm",
+          "run",
+          "check"
+        ],
+        "timeout_seconds": 60,
+        "output_limit_bytes": 32768
+      },
+      {
+        "id": "leak-check",
+        "description": "Public asset leak scan.",
+        "cwd": ".",
+        "argv": [
+          "npm",
+          "run",
+          "verify:leaks"
+        ],
+        "timeout_seconds": 60,
+        "output_limit_bytes": 32768
+      }
+    ]
+  }
+}

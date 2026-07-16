@@ -7,7 +7,10 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "check": "tsc --noEmit",
-    "verify:leaks": "node scripts/leak-check.mjs"
+    "verify:leaks": "node scripts/leak-check.mjs",
+    "test:contribution-gate": "python3 -m unittest discover -s tests -p 'test_contribution_gate.py'",
+    "zero-context:audit": "python3 .agent/contribution_gate.py audit",
+    "zero-context:verify": "python3 .agent/contribution_gate.py verify"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260701.0",
