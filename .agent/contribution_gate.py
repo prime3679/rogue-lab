@@ -26,7 +26,26 @@ SHELL_INLINE_EXECUTORS = {"sh", "bash", "zsh", "fish", "cmd", "powershell", "pws
 SHELL_INLINE_FLAGS = {"-c", "/c", "-command", "-encodedcommand"}
 INLINE_CODE_FLAGS = {"-c", "-e"}
 NETWORK_EXECUTORS = {"curl", "wget", "scp", "ssh"}
-PACKAGE_MANAGERS = {"pip", "pip3", "npm", "pnpm", "yarn", "brew", "apt", "apt-get", "uv", "poetry"}
+PACKAGE_MANAGERS = {
+    "apt",
+    "apt-get",
+    "brew",
+    "bun",
+    "cargo",
+    "conda",
+    "gem",
+    "go",
+    "mamba",
+    "npm",
+    "pip",
+    "pip3",
+    "pipenv",
+    "pipx",
+    "pnpm",
+    "poetry",
+    "uv",
+    "yarn",
+}
 INSTALL_SUBCOMMANDS = {
     "install",
     "add",
@@ -35,7 +54,24 @@ INSTALL_SUBCOMMANDS = {
     "setup",
     "restore",
     "ensurepip",
+    "ci",
+    "i",
+    "update",
+    "upgrade",
 }
+PACKAGE_FETCH_EXECUTORS = {"bunx", "npx", "pnpx"}
+PACKAGE_FETCH_SUBCOMMANDS = {"dlx", "exec", "x"}
+TRUSTED_RUN_SUBCOMMANDS = {"npm", "pnpm", "yarn", "bun"}
+EXECUTABLE_BLOCKED_SUBCOMMANDS = {
+    "cargo": {"install"},
+    "conda": {"create", "install", "update", "upgrade"},
+    "gem": {"install", "update", "upgrade"},
+    "go": {"get", "install"},
+    "mamba": {"create", "install", "update", "upgrade"},
+    "pipenv": {"install", "sync", "update", "upgrade"},
+    "pipx": {"ensurepath", "inject", "install", "reinstall", "upgrade"},
+}
+PYTHON_MODULE_PACKAGE_MANAGERS = {"pip", "ensurepip", "uv", "pipx", "pipenv"}
 DEFAULT_TIMEOUT_SECONDS = 30
 MAX_TIMEOUT_SECONDS = 300
 DEFAULT_OUTPUT_LIMIT_BYTES = 16 * 1024
@@ -252,6 +288,57 @@ def is_inline_code_executor(executable: str) -> bool:
     return bool(INLINE_CODE_EXECUTOR_RE.fullmatch(executable)) or executable in {"node", "nodejs", "ruby", "perl"}
 
 
+def has_blocked_package_manager_tokens(executable: str, lowered: Sequence[str]) -> bool:
+    package_tokens = lowered[1:]
+    if executable == "uv" and len(package_tokens) >= 2 and package_tokens[0] == "pip":
+        return any(token in INSTALL_SUBCOMMANDS for token in package_tokens[1:])
+    if executable == "poetry" and len(package_tokens) >= 2 and package_tokens[0] == "self":
+        return any(token in INSTALL_SUBCOMMANDS for token in package_tokens[1:])
+    if executable in EXECUTABLE_BLOCKED_SUBCOMMANDS:
+        return any(token in EXECUTABLE_BLOCKED_SUBCOMMANDS[executable] for token in package_tokens)
+    return any(token in INSTALL_SUBCOMMANDS or token in PACKAGE_FETCH_SUBCOMMANDS for token in package_tokens)
+
+
+def is_forbidden_package_manager_command(executable: str, lowered: Sequence[str]) -> bool:
+    if executable in PACKAGE_FETCH_EXECUTORS:
+        return True
+    if executable == "yarn" and len(lowered) == 1:
+        return True
+    if executable in TRUSTED_RUN_SUBCOMMANDS and len(lowered) >= 2 and lowered[1] == "run":
+        return False
+    if executable == "bun":
+        if len(lowered) == 1:
+            return True
+        if has_blocked_package_manager_tokens(executable, lowered):
+            return True
+        return False
+    if executable not in PACKAGE_MANAGERS:
+        return False
+    if has_blocked_package_manager_tokens(executable, lowered):
+        return True
+    return False
+
+
+def is_forbidden_python_module_package_manager_command(executable: str, lowered: Sequence[str]) -> bool:
+    if not executable.startswith("python") or len(lowered) < 3 or lowered[1] != "-m":
+        return False
+
+    module_name = lowered[2]
+    if module_name not in PYTHON_MODULE_PACKAGE_MANAGERS:
+        return False
+
+    module_tokens = lowered[3:]
+    if module_name == "uv" and len(module_tokens) >= 2 and module_tokens[0] == "pip":
+        return any(token in INSTALL_SUBCOMMANDS for token in module_tokens[1:])
+    if module_name == "ensurepip":
+        return True
+    if module_name == "pip":
+        return any(token in INSTALL_SUBCOMMANDS for token in module_tokens)
+    if module_name in EXECUTABLE_BLOCKED_SUBCOMMANDS:
+        return any(token in EXECUTABLE_BLOCKED_SUBCOMMANDS[module_name] for token in module_tokens)
+    return False
+
+
 def build_child_env(overrides: Dict[str, str]) -> Dict[str, str]:
     env = {
         key: value
@@ -370,13 +457,10 @@ def validate_command_shape(command: Any, index: int, errors: List[str]) -> Dict[
         errors.append(f"{label} uses inline code execution, which is forbidden.")
     if executable in NETWORK_EXECUTORS:
         errors.append(f"{label} uses a network-oriented executable ({effective_argv[0]!r}), which is forbidden.")
-    if executable in PACKAGE_MANAGERS and any(token in INSTALL_SUBCOMMANDS for token in lowered[1:]):
-        errors.append(f"{label} looks like setup/install work, which is forbidden.")
-    if executable.startswith("python") and len(lowered) >= 4:
-        if lowered[1] == "-m" and lowered[2] in {"pip", "ensurepip"} and any(
-            token in INSTALL_SUBCOMMANDS for token in lowered[3:]
-        ):
-            errors.append(f"{label} looks like setup/install work, which is forbidden.")
+    if is_forbidden_package_manager_command(executable, lowered):
+        errors.append(f"{label} looks like setup/install or ephemeral package-fetch work, which is forbidden.")
+    if is_forbidden_python_module_package_manager_command(executable, lowered):
+        errors.append(f"{label} looks like setup/install or ephemeral package-fetch work, which is forbidden.")
 
     return {
         "id": command_id.strip() if isinstance(command_id, str) else "",
