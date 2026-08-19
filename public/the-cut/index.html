@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>the cut · Rogue Lab</title>
+<meta name="description" content="Name one piece of work. Keep exactly three moves. Kill the rest." />
+<style>
+:root {
+  --paper: #f6efe3;
+  --paper-warm: #efe3d0;
+  --card: #fbf5ea;
+  --ink: #191612;
+  --muted: #766b5d;
+  --faint: #a89a88;
+  --rust: #a44322;
+  --blue: #0567b1;
+  --blue-soft: #dbe9f8;
+  --rule: rgba(25, 22, 18, 0.18);
+  --serif: Georgia, Cambria, "Times New Roman", serif;
+  --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html {
+  background: var(--paper);
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  max-width: 100%;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 78% 18%, rgba(5, 103, 177, 0.08), transparent 15rem),
+    linear-gradient(180deg, var(--paper), var(--paper-warm));
+  color: var(--ink);
+  font-family: var(--sans);
+}
+body:before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.28;
+  background-image: radial-gradient(rgba(25, 22, 18, 0.09) 0.55px, transparent 0.55px);
+  background-size: 8px 8px;
+}
+.shell {
+  position: relative;
+  width: min(420px, calc(100% - 28px));
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 22px 0 48px;
+}
+.back {
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: none;
+}
+.back:hover { color: var(--rust); text-decoration: underline; text-underline-offset: 3px; }
+.kicker {
+  margin: 28px 0 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: var(--blue);
+}
+h1 {
+  font-family: var(--serif);
+  font-size: clamp(48px, 16vw, 68px);
+  line-height: 0.9;
+  letter-spacing: -0.045em;
+  font-weight: 500;
+  margin: 0 0 12px;
+}
+.lede {
+  margin: 0 0 28px;
+  max-width: 34ch;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.45;
+}
+label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--blue);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+input[type="text"] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.3;
+  padding: 8px 0 10px;
+  border-radius: 0;
+  outline: none;
+}
+#title {
+  font-size: clamp(22px, 7vw, 32px);
+  font-style: italic;
+  letter-spacing: -0.02em;
+}
+input::placeholder { color: var(--faint); }
+.named { margin-bottom: 28px; }
+.add-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.add-grow { flex: 1; min-width: 0; }
+.add-row input { width: 100%; }
+.plain {
+  flex: none;
+  border: 0;
+  background: none;
+  padding: 0 0 10px;
+  color: var(--rust);
+  font-family: var(--serif);
+  font-size: 18px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.plain:disabled { color: var(--faint); cursor: not-allowed; }
+.plain:hover:not(:disabled) { color: var(--ink); }
+.tally {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+  color: var(--blue);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px dashed var(--blue);
+}
+.item {
+  border-bottom: 1px solid var(--rule);
+  padding: 12px 0 10px;
+}
+.item-text {
+  display: block;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-family: var(--serif);
+  font-size: 20px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+.item.is-cut .item-text {
+  color: var(--faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--rust);
+}
+.item.is-kept .item-text {
+  color: var(--blue);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 8px;
+}
+.act {
+  border: 0;
+  background: none;
+  padding: 8px 0;
+  min-height: 44px;
+  color: var(--muted);
+  font-family: var(--serif);
+  font-size: 16px;
+  cursor: pointer;
+}
+.act-cut { color: var(--rust); text-decoration: underline; text-underline-offset: 3px; }
+.keep {
+  position: relative;
+  color: var(--ink);
+  isolation: isolate;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+.keep-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  height: 2px;
+  background: var(--blue);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+.keep.inking .keep-fill {
+  animation: ink 0.9s linear forwards;
+}
+.keep.is-armed { color: var(--blue); }
+.keep:disabled { color: var(--faint); cursor: not-allowed; }
+@keyframes ink {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.mark {
+  margin-left: auto;
+  color: var(--blue);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+.item.is-cut .mark { color: var(--rust); }
+.empty {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.4;
+}
+.remains {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--blue);
+}
+.remains h2 {
+  margin: 0 0 10px;
+  font-family: var(--serif);
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+.remains ol {
+  margin: 0;
+  padding-left: 1.2em;
+}
+.remains li {
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+  font-family: var(--serif);
+  font-size: 20px;
+}
+.foot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  margin-top: 28px;
+}
+.confirm {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.confirm[hidden], .empty[hidden], .remains[hidden] { display: none; }
+footer {
+  margin-top: 42px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: lowercase;
+}
+@media (prefers-reduced-motion: reduce) {
+  .keep.inking .keep-fill { animation: none; transform: scaleX(1); }
+}
+</style>
+</head>
+<body>
+<main class="shell">
+  <a class="back" href="/">← rogue lab</a>
+  <div class="kicker">a field note</div>
+  <h1>the cut</h1>
+  <p class="lede">name one piece of work. keep exactly three moves. kill the rest.</p>
+
+  <div class="named">
+    <label for="title">this cut is for</label>
+    <input id="title" type="text" maxlength="80" autocomplete="off" required aria-required="true" placeholder="the week, the product, the decision" />
+  </div>
+
+  <form id="add-form" class="add-row">
+    <div class="add-grow">
+      <label for="candidate">a candidate</label>
+      <input id="candidate" type="text" maxlength="120" autocomplete="off" placeholder="a move you could make" />
+    </div>
+    <button class="plain" type="submit" id="add">add</button>
+  </form>
+
+  <div class="tally">
+    <span id="tally">kept 0 of 3</span>
+    <span id="rule">name the work before you keep or cut.</span>
+  </div>
+  <ul class="list" id="list" aria-live="polite"></ul>
+  <p class="empty" id="empty">write the pile first. name the work before you keep or cut.</p>
+
+  <section class="remains" id="remains" hidden>
+    <h2>what remains</h2>
+    <ol id="kept-list"></ol>
+  </section>
+
+  <div class="foot-actions">
+    <button class="plain" type="button" id="cut-rest" hidden>cut the rest</button>
+    <button class="plain" type="button" id="another">start another cut</button>
+  </div>
+  <p class="confirm" id="confirm" hidden>
+    this clears the page.
+    <button class="plain" type="button" id="confirm-clear">clear it</button>
+    <button class="plain" type="button" id="confirm-cancel">never mind</button>
+  </p>
+  <footer>stays in this browser. nothing is sent.</footer>
+</main>
+<script>
+(function () {
+  "use strict";
+
+  var KEY = "rogue-lab:the-cut";
+  var HOLD_MS = 900;
+  var MAX_KEEP = 3;
+  var MAX_ITEMS = 40;
+  var state = { title: "", items: [] };
+  var hold = { id: "", timer: 0 };
+
+  var title = document.getElementById("title");
+  var form = document.getElementById("add-form");
+  var candidate = document.getElementById("candidate");
+  var list = document.getElementById("list");
+  var empty = document.getElementById("empty");
+  var tally = document.getElementById("tally");
+  var rule = document.getElementById("rule");
+  var remains = document.getElementById("remains");
+  var keptList = document.getElementById("kept-list");
+  var cutRest = document.getElementById("cut-rest");
+  var another = document.getElementById("another");
+  var confirmBox = document.getElementById("confirm");
+  var confirmClear = document.getElementById("confirm-clear");
+  var confirmCancel = document.getElementById("confirm-cancel");
+
+  function uid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return String(Date.now()) + "-" + Math.random().toString(16).slice(2);
+  }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      var parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return;
+      state.title = typeof parsed.title === "string" ? parsed.title.slice(0, 80) : "";
+      state.items = Array.isArray(parsed.items) ? parsed.items.filter(validItem).slice(0, MAX_ITEMS) : [];
+    } catch (err) {
+      state = { title: "", items: [] };
+    }
+  }
+
+  function validItem(item) {
+    return item && typeof item.id === "string" && typeof item.text === "string" &&
+      (item.status === "open" || item.status === "kept" || item.status === "cut");
+  }
+
+  function namedWork() {
+    return state.title.replace(/\s+/g, " ").trim().length > 0;
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(state));
+    } catch (err) {}
+  }
+
+  function counts() {
+    var kept = 0, cut = 0, open = 0;
+    for (var i = 0; i < state.items.length; i++) {
+      if (state.items[i].status === "kept") kept++;
+      else if (state.items[i].status === "cut") cut++;
+      else open++;
+    }
+    return { kept: kept, cut: cut, open: open };
+  }
+
+  function find(id) {
+    for (var i = 0; i < state.items.length; i++) {
+      if (state.items[i].id === id) return state.items[i];
+    }
+    return null;
+  }
+
+  function setStatus(id, status) {
+    var item = find(id);
+    if (!item) return;
+    if ((status === "kept" || status === "cut") && !namedWork()) return;
+    if (status === "kept" && counts().kept >= MAX_KEEP && item.status !== "kept") return;
+    item.status = status;
+    save();
+    render();
+  }
+
+  function clearHold() {
+    if (hold.timer) window.clearTimeout(hold.timer);
+    hold = { id: "", timer: 0 };
+    var inking = list.querySelector(".keep.inking");
+    if (inking) inking.classList.remove("inking");
+  }
+
+  function keepItem(id) {
+    clearHold();
+    setStatus(id, "kept");
+  }
+
+  function ruleText(n, hasName) {
+    if (!hasName) return "name the work before you keep or cut.";
+    if (n.kept >= MAX_KEEP && n.open > 0) return "three kept. cut what remains.";
+    if (n.kept >= MAX_KEEP) return "the cut is made.";
+    return "hold to keep. tap to cut.";
+  }
+
+  function keepLabel(keptCount, hasName) {
+    if (!hasName) return "name the work first";
+    if (keptCount >= MAX_KEEP) return "three already kept";
+    return "hold to keep";
+  }
+
+  function syncNamedGate() {
+    var n = counts();
+    var hasName = namedWork();
+    if (state.items.length === 0) {
+      empty.hidden = false;
+      empty.textContent = hasName
+        ? "write the pile first. the cut comes after."
+        : "write the pile first. name the work before you keep or cut.";
+    }
+    rule.textContent = ruleText(n, hasName);
+    cutRest.hidden = !(hasName && n.kept >= MAX_KEEP && n.open > 0);
+    var buttons = list.querySelectorAll("button[data-act]");
+    for (var i = 0; i < buttons.length; i++) {
+      var btn = buttons[i];
+      var locksKeepCut = btn.dataset.act === "keep" || btn.dataset.act === "cut";
+      btn.disabled = (locksKeepCut && !hasName) || (btn.dataset.act === "keep" && n.kept >= MAX_KEEP);
+      if (btn.dataset.act === "keep") btn.childNodes[0].nodeValue = keepLabel(n.kept, hasName);
+    }
+  }
+
+  function render() {
+    var n = counts();
+    var hasName = namedWork();
+    title.value = state.title;
+    list.innerHTML = "";
+    empty.hidden = state.items.length > 0;
+    empty.textContent = hasName
+      ? "write the pile first. the cut comes after."
+      : "write the pile first. name the work before you keep or cut.";
+    tally.textContent = "kept " + n.kept + " of " + MAX_KEEP;
+    rule.textContent = ruleText(n, hasName);
+
+    for (var i = 0; i < state.items.length; i++) {
+      list.appendChild(row(state.items[i], n.kept, hasName));
+    }
+
+    var kept = state.items.filter(function (item) { return item.status === "kept"; });
+    remains.hidden = kept.length === 0;
+    keptList.textContent = "";
+    for (var k = 0; k < kept.length; k++) {
+      var li = document.createElement("li");
+      li.textContent = kept[k].text;
+      keptList.appendChild(li);
+    }
+
+    cutRest.hidden = !(hasName && n.kept >= MAX_KEEP && n.open > 0);
+    confirmBox.hidden = true;
+  }
+
+  function row(item, keptCount, hasName) {
+    var li = document.createElement("li");
+    li.className = "item" + (item.status === "kept" ? " is-kept" : item.status === "cut" ? " is-cut" : "");
+    li.dataset.id = item.id;
+
+    var text = document.createElement("span");
+    text.className = "item-text";
+    text.textContent = item.text;
+    li.appendChild(text);
+
+    var actions = document.createElement("div");
+    actions.className = "actions";
+
+    if (item.status === "open") {
+      var cut = document.createElement("button");
+      cut.type = "button";
+      cut.className = "act act-cut";
+      cut.dataset.act = "cut";
+      cut.disabled = !hasName;
+      cut.textContent = "cut";
+      actions.appendChild(cut);
+
+      var keep = document.createElement("button");
+      keep.type = "button";
+      keep.className = "keep act";
+      keep.dataset.act = "keep";
+      keep.disabled = !hasName || keptCount >= MAX_KEEP;
+      keep.textContent = keepLabel(keptCount, hasName);
+      var fill = document.createElement("span");
+      fill.className = "keep-fill";
+      fill.setAttribute("aria-hidden", "true");
+      keep.appendChild(fill);
+      actions.appendChild(keep);
+    } else if (item.status === "kept") {
+      var release = document.createElement("button");
+      release.type = "button";
+      release.className = "act";
+      release.dataset.act = "open";
+      release.textContent = "release";
+      actions.appendChild(release);
+      var keptMark = document.createElement("span");
+      keptMark.className = "mark";
+      keptMark.textContent = "kept";
+      actions.appendChild(keptMark);
+    } else {
+      var restore = document.createElement("button");
+      restore.type = "button";
+      restore.className = "act";
+      restore.dataset.act = "open";
+      restore.textContent = "restore";
+      actions.appendChild(restore);
+      var cutMark = document.createElement("span");
+      cutMark.className = "mark";
+      cutMark.textContent = "cut";
+      actions.appendChild(cutMark);
+    }
+
+    li.appendChild(actions);
+    return li;
+  }
+
+  function armKeep(button) {
+    var armed = list.querySelector(".keep.is-armed");
+    if (armed && armed !== button) {
+      armed.classList.remove("is-armed");
+      armed.childNodes[0].nodeValue = "hold to keep";
+    }
+    button.classList.add("is-armed");
+    button.childNodes[0].nodeValue = "keep this?";
+  }
+
+  list.addEventListener("click", function (event) {
+    var button = event.target.closest("button[data-act]");
+    if (!button || button.disabled) return;
+    var itemEl = button.closest(".item");
+    if (!itemEl) return;
+    var id = itemEl.dataset.id;
+    var act = button.dataset.act;
+    if ((act === "keep" || act === "cut") && !namedWork()) {
+      title.focus();
+      return;
+    }
+    if (act === "cut" || act === "open") {
+      clearHold();
+      setStatus(id, act === "cut" ? "cut" : "open");
+      return;
+    }
+    if (act === "keep") {
+      if (button.classList.contains("is-armed")) keepItem(id);
+      else armKeep(button);
+    }
+  });
+
+  list.addEventListener("pointerdown", function (event) {
+    var button = event.target.closest("button[data-act='keep']");
+    if (!button || button.disabled || !namedWork()) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    var itemEl = button.closest(".item");
+    if (!itemEl) return;
+    var id = itemEl.dataset.id;
+    clearHold();
+    if (button.setPointerCapture) {
+      try { button.setPointerCapture(event.pointerId); } catch (err) {}
+    }
+    button.classList.add("inking");
+    hold.id = id;
+    hold.timer = window.setTimeout(function () { keepItem(id); }, HOLD_MS);
+  });
+
+  list.addEventListener("pointerup", clearHold);
+  list.addEventListener("pointercancel", clearHold);
+  list.addEventListener("lostpointercapture", clearHold);
+  list.addEventListener("contextmenu", function (event) {
+    if (event.target.closest("button[data-act='keep']")) event.preventDefault();
+  });
+
+  title.addEventListener("input", function () {
+    state.title = title.value.slice(0, 80);
+    save();
+    syncNamedGate();
+  });
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var text = candidate.value.replace(/\s+/g, " ").trim();
+    if (!text) return;
+    if (state.items.length >= MAX_ITEMS) {
+      rule.textContent = "the page is full. cut something first.";
+      return;
+    }
+    state.items.push({ id: uid(), text: text.slice(0, 120), status: "open" });
+    candidate.value = "";
+    save();
+    render();
+    candidate.focus();
+  });
+
+  cutRest.addEventListener("click", function () {
+    if (!namedWork()) return;
+    for (var i = 0; i < state.items.length; i++) {
+      if (state.items[i].status === "open") state.items[i].status = "cut";
+    }
+    save();
+    render();
+  });
+
+  another.addEventListener("click", function () {
+    confirmBox.hidden = false;
+  });
+  confirmCancel.addEventListener("click", function () {
+    confirmBox.hidden = true;
+  });
+  confirmClear.addEventListener("click", function () {
+    state = { title: "", items: [] };
+    save();
+    render();
+    title.focus();
+  });
+
+  load();
+  render();
+})();
+</script>
+</body>
+</html>
