@@ -50,6 +50,7 @@ body:before {
 .shell {
   position: relative;
   width: min(420px, calc(100% - 28px));
+  max-width: 100%;
   margin: 0 auto;
   padding: 22px 0 48px;
 }
@@ -137,8 +138,9 @@ input::placeholder { color: var(--faint); }
 .plain:hover:not(:disabled) { color: var(--ink); }
 .tally {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px 12px;
   margin-bottom: 8px;
   color: var(--blue);
   font-family: var(--mono);
