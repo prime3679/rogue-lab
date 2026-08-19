@@ -299,17 +299,17 @@ footer {
   <form id="add-form" class="add-row">
     <div class="add-grow">
       <label for="candidate">a candidate</label>
-      <input id="candidate" type="text" maxlength="120" autocomplete="off" placeholder="a move you could make" disabled />
+      <input id="candidate" type="text" maxlength="120" autocomplete="off" placeholder="a move you could make" />
     </div>
-    <button class="plain" type="submit" id="add" disabled>add</button>
+    <button class="plain" type="submit" id="add">add</button>
   </form>
 
   <div class="tally">
     <span id="tally">kept 0 of 3</span>
-    <span id="rule">name the work first.</span>
+    <span id="rule">name the work before you keep or cut.</span>
   </div>
   <ul class="list" id="list" aria-live="polite"></ul>
-  <p class="empty" id="empty">name the work first.</p>
+  <p class="empty" id="empty">write the pile first. name the work before you keep or cut.</p>
 
   <section class="remains" id="remains" hidden>
     <h2>what remains</h2>
@@ -341,7 +341,6 @@ footer {
   var title = document.getElementById("title");
   var form = document.getElementById("add-form");
   var candidate = document.getElementById("candidate");
-  var add = document.getElementById("add");
   var list = document.getElementById("list");
   var empty = document.getElementById("empty");
   var tally = document.getElementById("tally");
@@ -406,7 +405,8 @@ footer {
 
   function setStatus(id, status) {
     var item = find(id);
-    if (!item || !namedWork()) return;
+    if (!item) return;
+    if ((status === "kept" || status === "cut") && !namedWork()) return;
     if (status === "kept" && counts().kept >= MAX_KEEP && item.status !== "kept") return;
     item.status = status;
     save();
@@ -426,27 +426,35 @@ footer {
   }
 
   function ruleText(n, hasName) {
-    if (!hasName) return "name the work first.";
+    if (!hasName) return "name the work before you keep or cut.";
     if (n.kept >= MAX_KEEP && n.open > 0) return "three kept. cut what remains.";
     if (n.kept >= MAX_KEEP) return "the cut is made.";
     return "hold to keep. tap to cut.";
   }
 
+  function keepLabel(keptCount, hasName) {
+    if (!hasName) return "name the work first";
+    if (keptCount >= MAX_KEEP) return "three already kept";
+    return "hold to keep";
+  }
+
   function syncNamedGate() {
     var n = counts();
     var hasName = namedWork();
-    candidate.disabled = !hasName;
-    add.disabled = !hasName;
     if (state.items.length === 0) {
       empty.hidden = false;
-      empty.textContent = hasName ? "write the pile first. the cut comes after." : "name the work first.";
+      empty.textContent = hasName
+        ? "write the pile first. the cut comes after."
+        : "write the pile first. name the work before you keep or cut.";
     }
     rule.textContent = ruleText(n, hasName);
     cutRest.hidden = !(hasName && n.kept >= MAX_KEEP && n.open > 0);
     var buttons = list.querySelectorAll("button[data-act]");
     for (var i = 0; i < buttons.length; i++) {
       var btn = buttons[i];
-      btn.disabled = !hasName || (btn.dataset.act === "keep" && n.kept >= MAX_KEEP);
+      var locksKeepCut = btn.dataset.act === "keep" || btn.dataset.act === "cut";
+      btn.disabled = (locksKeepCut && !hasName) || (btn.dataset.act === "keep" && n.kept >= MAX_KEEP);
+      if (btn.dataset.act === "keep") btn.childNodes[0].nodeValue = keepLabel(n.kept, hasName);
     }
   }
 
@@ -454,11 +462,11 @@ footer {
     var n = counts();
     var hasName = namedWork();
     title.value = state.title;
-    candidate.disabled = !hasName;
-    add.disabled = !hasName;
     list.innerHTML = "";
     empty.hidden = state.items.length > 0;
-    empty.textContent = hasName ? "write the pile first. the cut comes after." : "name the work first.";
+    empty.textContent = hasName
+      ? "write the pile first. the cut comes after."
+      : "write the pile first. name the work before you keep or cut.";
     tally.textContent = "kept " + n.kept + " of " + MAX_KEEP;
     rule.textContent = ruleText(n, hasName);
 
@@ -506,7 +514,7 @@ footer {
       keep.className = "keep act";
       keep.dataset.act = "keep";
       keep.disabled = !hasName || keptCount >= MAX_KEEP;
-      keep.textContent = keptCount >= MAX_KEEP ? "three already kept" : "hold to keep";
+      keep.textContent = keepLabel(keptCount, hasName);
       var fill = document.createElement("span");
       fill.className = "keep-fill";
       fill.setAttribute("aria-hidden", "true");
@@ -517,7 +525,6 @@ footer {
       release.type = "button";
       release.className = "act";
       release.dataset.act = "open";
-      release.disabled = !hasName;
       release.textContent = "release";
       actions.appendChild(release);
       var keptMark = document.createElement("span");
@@ -529,7 +536,6 @@ footer {
       restore.type = "button";
       restore.className = "act";
       restore.dataset.act = "open";
-      restore.disabled = !hasName;
       restore.textContent = "restore";
       actions.appendChild(restore);
       var cutMark = document.createElement("span");
@@ -554,11 +560,15 @@ footer {
 
   list.addEventListener("click", function (event) {
     var button = event.target.closest("button[data-act]");
-    if (!button || button.disabled || !namedWork()) return;
+    if (!button || button.disabled) return;
     var itemEl = button.closest(".item");
     if (!itemEl) return;
     var id = itemEl.dataset.id;
     var act = button.dataset.act;
+    if ((act === "keep" || act === "cut") && !namedWork()) {
+      title.focus();
+      return;
+    }
     if (act === "cut" || act === "open") {
       clearHold();
       setStatus(id, act === "cut" ? "cut" : "open");
@@ -601,10 +611,6 @@ footer {
 
   form.addEventListener("submit", function (event) {
     event.preventDefault();
-    if (!namedWork()) {
-      title.focus();
-      return;
-    }
     var text = candidate.value.replace(/\s+/g, " ").trim();
     if (!text) return;
     if (state.items.length >= MAX_ITEMS) {
